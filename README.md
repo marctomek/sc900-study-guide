@@ -60,7 +60,7 @@ tenant IDs, or copied course material.
 
 ## Progress
 
-- [ ] 1. Security, compliance, and identity concepts
+- [ ] 1. Security, compliance, and identity concepts (labs 1.1 and 1.2 done)
 - [ ] 2. Microsoft Entra
 - [ ] 3. Microsoft security solutions
 - [ ] 4. Microsoft compliance solutions

@@ -12,13 +12,32 @@ This domain is mostly vocabulary. The goal is to explain each term in one senten
 **verify explicitly**, **use least-privilege access**, **assume breach**. Applied across six pillars:
 identities, devices, applications, data, infrastructure, networks.
 
-**Lab** — TryHackMe *M365 Monitoring Basics*: looked at how every sign-in is checked (user, device, location) rather than trusted by network location.
+**Lab** — TryHackMe *M365 Monitoring Basics* (Task 4, Entra ID sign-in logs): pulled failed sign-ins to see what Entra records about each attempt.
+
+**Query** (SPL, as run in the lab)
+
+```spl
+index=scenario sourcetype="azure:aad:signin" "status.errorCode"!=0
+| table createdDateTime userPrincipalName appDisplayName ipAddress location.city status.errorCode status.failureReason conditionalAccessStatus
+| head 10
+```
+
+**KQL equivalent** (Microsoft Sentinel)
+
+```kql
+SigninLogs
+| where ResultType != "0"
+| project TimeGenerated, UserPrincipalName, AppDisplayName, IPAddress, City = tostring(LocationDetails.city), ResultType, ResultDescription, ConditionalAccessStatus
+| take 10
+```
 
 **Result**
 
-![Sign-in log entry](images/1.1-signin-entry.png)
+![Failed Entra ID sign-ins](images/1.1-signin-entry.png)
 
-**Why it works** — Each sign-in is checked on its own signals ("verify explicitly"). The logs exist because we assume something will eventually get through ("assume breach").
+*User and IP address redacted.*
+
+**Why it works** — Every sign-in is checked and logged on its own signals: user, app, IP, location and result ("verify explicitly"). Here one account fails repeatedly within seconds from the same IP with error 50126 (invalid username or password), which is a brute-force pattern. `conditionalAccessStatus = notApplied` shows no Conditional Access policy stepped in. Logging every attempt is what makes this visible ("assume breach").
 
 **Exam trap** — Zero Trust is a *strategy*, not a product. The third principle is "assume **breach**", not "assume trust".
 
