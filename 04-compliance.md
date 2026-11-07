@@ -85,24 +85,30 @@ Microsoft Learn exercises or an E5 trial tenant. The audit lab can also be done 
 
 **Concept** — **Audit (Standard)** records user and admin activity across Microsoft 365. **Audit (Premium)** adds longer retention and extra events such as `MailItemsAccessed`.
 
-**Lab** — Looked for mass file downloads, the kind of activity Insider Risk is built to catch.
+**Lab** — TryHackMe *M365 Monitoring Basics* (Task 7, Unified Audit Log): summarised every Microsoft 365 action in the lab by service and operation.
 
-**Query** (Sentinel, Office 365 connector)
+**Query** (SPL, as run in the lab)
+
+```spl
+index=scenario sourcetype="o365:management:activity"
+| eval sourceIP=coalesce('ClientIP', 'ClientIPAddress')
+| stats count by Workload Operation
+| sort - count
+```
+
+**KQL equivalent** (Microsoft Sentinel, Office 365 connector)
 
 ```kql
 OfficeActivity
-| where TimeGenerated > ago(7d)
-| where Operation == "FileDownloaded"
-| summarize Downloads = count() by UserId
-| where Downloads > 100
-| sort by Downloads desc
+| summarize count() by OfficeWorkload, Operation
+| sort by count_ desc
 ```
 
 **Result**
 
-![Audit search for file downloads](images/4.4-audit-downloads.png)
+![M365 Unified Audit Log activity by workload and operation](images/4.7-m365-unified-audit.png)
 
-**Why it works** — The `OfficeActivity` table holds the Microsoft 365 audit log in Sentinel. Counting downloads per user shows unusual volumes.
+**Why it works** — The Unified Audit Log records actions across Exchange, SharePoint, OneDrive and Teams, and `stats count by` gives a quick overview of what happened. Every action here is in Exchange. `MailItemsAccessed` shows mail being read, which is an Audit (Premium) event. `New-InboxRule` and `Set-Mailbox` are common attacker moves after a compromise: they hide or forward mail. (The `sourceIP` line is only useful if you add it to the `stats`, for example `by Workload Operation sourceIP`.)
 
 **Exam trap** — `MailItemsAccessed` (used to investigate mailbox breaches) comes with **Audit (Premium)**.
 
