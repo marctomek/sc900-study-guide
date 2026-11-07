@@ -92,7 +92,7 @@ Microsoft Learn exercises or an E5 trial tenant. The audit lab can also be done 
 ```spl
 index=scenario sourcetype="o365:management:activity"
 | eval sourceIP=coalesce('ClientIP', 'ClientIPAddress')
-| stats count by Workload Operation
+| stats count by Workload Operation sourceIP
 | sort - count
 ```
 
@@ -100,7 +100,7 @@ index=scenario sourcetype="o365:management:activity"
 
 ```kql
 OfficeActivity
-| summarize count() by OfficeWorkload, Operation
+| summarize count() by OfficeWorkload, Operation, ClientIP
 | sort by count_ desc
 ```
 
@@ -108,7 +108,9 @@ OfficeActivity
 
 ![M365 Unified Audit Log activity by workload and operation](images/4.7-m365-unified-audit.png)
 
-**Why it works** — The Unified Audit Log records actions across Exchange, SharePoint, OneDrive and Teams, and `stats count by` gives a quick overview of what happened. Every action here is in Exchange. `MailItemsAccessed` shows mail being read, which is an Audit (Premium) event. `New-InboxRule` and `Set-Mailbox` are common attacker moves after a compromise: they hide or forward mail. (The `sourceIP` line is only useful if you add it to the `stats`, for example `by Workload Operation sourceIP`.)
+*Attacker IP redacted.*
+
+**Why it works** — The Unified Audit Log records actions across Exchange, SharePoint, OneDrive and Teams. `coalesce` merges the two IP field names into one `sourceIP`, and `stats count by` gives a quick overview of who did what from where. Every action here is in Exchange. `MailItemsAccessed` shows mail being read, which is an Audit (Premium) event. Grouping by IP separates the attacker's activity (creating and sending mail, adding an inbox rule) from activity coming from Microsoft's own address ranges. `New-InboxRule` and `Set-Mailbox` are common attacker moves after a compromise: they hide or forward mail.
 
 **Exam trap** — `MailItemsAccessed` (used to investigate mailbox breaches) comes with **Audit (Premium)**.
 
