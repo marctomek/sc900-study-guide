@@ -72,11 +72,34 @@ The CIA triad: **confidentiality** (only the right people see it), **integrity**
 - **Federation**: trusting another organization's IdP.
 - **Directory services**: Active Directory Domain Services (on-premises) vs Entra ID (cloud).
 
-**Lab** — TryHackMe *M365 Monitoring Basics*: compared the sign-in result (AuthN) with the app and resource accessed (AuthZ) in the same log entry.
+**Lab** — TryHackMe *M365 Monitoring Basics* (Task 5, Entra ID audit logs): listed every account change, showing who made it (initiator) and who it was made to (target).
+
+**Query** (SPL, as run in the lab)
+
+```spl
+index=scenario sourcetype="azure:aad:audit"
+| eval initiator=coalesce('initiatedBy.user.userPrincipalName', 'initiatedBy.app.displayName')
+| table _time activityDisplayName initiator targetResources{}.userPrincipalName result
+```
+
+**KQL equivalent** (Microsoft Sentinel)
+
+```kql
+AuditLogs
+| extend Initiator = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))
+| extend Target = tostring(TargetResources[0].userPrincipalName)
+| project TimeGenerated, OperationName, Initiator, Target, Result
+```
 
 **Result**
 
-![Audit log entry](images/1.2-audit-entry.png)
+![Entra ID audit log entries](images/1.2-audit-entry.png)
+
+*User names redacted.*
+
+**Why it works** — A change can be made by a person or by a Microsoft service, so `coalesce` takes whichever initiator field has a value. The log shows a user registering new security info (an MFA method) and then running a self-service password reset. After a compromise, this pattern can mean an attacker is locking in access.
+
+
 
 **Exam trap** — AuthN always comes **before** AuthZ. Federation does **not** need the two organizations to share a directory.
 
