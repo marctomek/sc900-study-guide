@@ -127,6 +127,30 @@ AADUserRiskEvents
 
 **Why it works** — ID Protection raised four **anonymizedIPAddress** detections: sign-ins from an anonymous network such as Tor or an anonymizing VPN. Each is **high** risk, still **atRisk** (no one has fixed or dismissed it yet) and detected in **realtime**, during the sign-in itself. That makes them **sign-in risk** detections, which a risk-based Conditional Access policy can act on straight away, for example by requiring MFA or blocking. The room's separate `risky_user` data is the **user risk** side: the overall chance that the account itself is compromised.
 
+**Lab C** — TryHackMe *Entra ID Monitoring* (Task 3): checked the overall risk on the account itself.
+
+**Query** (SPL, as run in the lab)
+
+```spl
+index=task-3 sourcetype="azure:aad:identity_protection:risky_user"
+| table userPrincipalName riskLevel riskState riskDetail riskLastUpdatedDateTime
+```
+
+**KQL equivalent** (Microsoft Sentinel)
+
+```kql
+AADRiskyUsers
+| project UserPrincipalName, RiskLevel, RiskState, RiskDetail, RiskLastUpdatedDateTime
+```
+
+**Result**
+
+![Entra ID Protection risky user](images/2.5c-risky-user.png)
+
+*User redacted.*
+
+**Why it works** — This is **user risk**: one row per account, not per sign-in. The four high-risk sign-in detections in Lab B rolled up into a **high** user risk, last updated a few minutes after them. `riskState = atRisk` with `riskDetail = none` means nobody has fixed it yet. An admin could dismiss it or confirm it compromised, or the user could clear it with a secure password change.
+
 **What stops it** — A sign-in risk policy (high risk → block or require MFA) and a user risk policy (high risk → require a secure password change). Both need Entra ID P2.
 
 **Exam trap** — Know user risk vs sign-in risk. ID Protection needs **Entra ID P2**.
