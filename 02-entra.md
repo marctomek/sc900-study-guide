@@ -103,6 +103,32 @@ SigninLogs
 
 **What stops it** — Entra password protection (bans common passwords), MFA, Smart Lockout, and ID Protection's password spray detection.
 
+**Lab B** — TryHackMe *Entra ID Monitoring* (Task 3): reviewed what Entra ID Protection flagged during the attack.
+
+**Query** (SPL, as run in the lab)
+
+```spl
+index=task-3 sourcetype="azure:aad:identity_protection:riskdetection"
+| table _time userPrincipalName riskEventType riskLevel riskState detectionTimingType ipAddress
+```
+
+**KQL equivalent** (Microsoft Sentinel)
+
+```kql
+AADUserRiskEvents
+| project TimeGenerated, UserPrincipalName, RiskEventType, RiskLevel, RiskState, DetectionTimingType, IpAddress
+```
+
+**Result**
+
+![Entra ID Protection risk detections](images/2.5b-risk-detection.png)
+
+*User and IP addresses redacted.*
+
+**Why it works** — ID Protection raised four **anonymizedIPAddress** detections: sign-ins from an anonymous network such as Tor or an anonymizing VPN. Each is **high** risk, still **atRisk** (no one has fixed or dismissed it yet) and detected in **realtime**, during the sign-in itself. That makes them **sign-in risk** detections, which a risk-based Conditional Access policy can act on straight away, for example by requiring MFA or blocking. The room's separate `risky_user` data is the **user risk** side: the overall chance that the account itself is compromised.
+
+**What stops it** — A sign-in risk policy (high risk → block or require MFA) and a user risk policy (high risk → require a secure password change). Both need Entra ID P2.
+
 **Exam trap** — Know user risk vs sign-in risk. ID Protection needs **Entra ID P2**.
 
 ---
