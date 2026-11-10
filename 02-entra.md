@@ -75,24 +75,33 @@ SigninLogs
 
 **Concept** — **Entra ID Protection** scores **user risk** (account probably compromised, e.g. leaked credentials) and **sign-in risk** (this sign-in looks suspicious, e.g. impossible travel or an anonymous IP), then applies risk-based policies.
 
-**Lab** — TryHackMe *Entra ID Monitoring*: found a password-spray pattern, where one IP fails against many accounts.
+**Lab** — TryHackMe *Entra ID Monitoring* (Task 2): grouped sign-ins by source IP to tell a password spray apart from normal failed logins.
 
-**Query**
+**Query** (SPL, as run in the lab)
+
+```spl
+index=task-2 sourcetype="azure:aad:signin"
+| stats count dc(userPrincipalName) AS users values(status.errorCode) AS errorCodes by ipAddress
+| sort - count
+```
+
+**KQL equivalent** (Microsoft Sentinel)
 
 ```kql
 SigninLogs
-| where TimeGenerated > ago(1d)
-| where ResultType == "50126"
-| summarize FailedUsers = dcount(UserPrincipalName), Attempts = count() by IPAddress
-| where FailedUsers > 10
-| sort by FailedUsers desc
+| summarize Attempts = count(), Users = dcount(UserPrincipalName), ErrorCodes = make_set(ResultType) by IPAddress
+| sort by Attempts desc
 ```
 
 **Result**
 
-![Password spray detection](images/2.5-password-spray.png)
+![Password spray detection by source IP](images/2.5-password-spray.png)
 
-**Why it works** — `ResultType 50126` is an invalid username or password. `dcount()` counts distinct accounts per IP, like `dc()` in SPL. Many accounts failing from one IP is the signature of a spray rather than brute force.
+*IP addresses redacted.*
+
+**Why it works** — `dc()` (`dcount()` in KQL) counts distinct accounts per IP. The top IP tried 7 different accounts in 14 attempts, and every attempt failed with 50126 (invalid username or password). A few tries per account across many accounts is a **password spray**: it stays under lockout limits. The other IPs each belong to one user with a normal mix: a typo (50126), the "stay signed in?" prompt (50140), then success (0).
+
+**What stops it** — Entra password protection (bans common passwords), MFA, Smart Lockout, and ID Protection's password spray detection.
 
 **Exam trap** — Know user risk vs sign-in risk. ID Protection needs **Entra ID P2**.
 
