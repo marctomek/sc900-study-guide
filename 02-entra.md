@@ -53,11 +53,33 @@ SigninLogs
 
 **Concept** — "If this, then that" policies. **Signals** (user or group, location, device, app, sign-in risk) lead to a **decision** (block, grant, or grant with conditions such as requiring MFA or a compliant device).
 
-**Lab (E5 trial, optional)** — Built a policy requiring MFA for all admin roles, first in report-only mode.
+**Lab** — TryHackMe *Entra ID Monitoring* (Task 3): found the sign-ins that Conditional Access blocked, and which policy blocked them.
+
+**Query** (SPL, as run in the lab)
+
+```spl
+index=task-3 sourcetype="azure:aad:signin" conditionalAccessStatus=failure
+| table _time userPrincipalName ipAddress status.errorCode appliedConditionalAccessPolicies{}.displayName appliedConditionalAccessPolicies{}.result
+```
+
+**KQL equivalent** (Microsoft Sentinel)
+
+```kql
+SigninLogs
+| where ConditionalAccessStatus == "failure"
+| mv-expand ConditionalAccessPolicies
+| project TimeGenerated, UserPrincipalName, IPAddress, ResultType,
+          Policy = tostring(ConditionalAccessPolicies.displayName),
+          PolicyResult = tostring(ConditionalAccessPolicies.result)
+```
 
 **Result**
 
-![Conditional Access policy](images/2.3-conditional-access.png)
+![Sign-ins blocked by Conditional Access](images/2.3-conditional-access.png)
+
+*User and IP addresses redacted.*
+
+**Why it works** — Every sign-in lists every Conditional Access policy and what it did. Error **53003** means "blocked by Conditional Access". The policy marked **failure** is the one that blocked the sign-in, here a location-based policy (**Block Suspicious Countries**). `notApplied` means the policy's conditions didn't match that sign-in. These blocked attempts happened *before* the high-risk detections in Lab 2.5b, so the location signal stopped the attacker first, and the risk-based MFA policy never came into play. A policy called "Allow Risky Users" is also worth reviewing in a real tenant.
 
 **Exam trap** — Conditional Access runs **after** first-factor authentication. It needs **Entra ID P1**.
 
