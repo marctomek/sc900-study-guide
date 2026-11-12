@@ -256,9 +256,18 @@ AuditLogs
 | 13:26 | Sign-in | Victim account signs in after MFA fatigue (Lab 2.2) | Initial access |
 | 13:28 | Audit | **Change password (self-service)** on the victim account | Lock out the real user |
 | 13:31 | Audit | **Add user**: a brand-new account is created | Backdoor account |
-| 13:31 | Audit | **Add member to role**: the new account gets a role | Privilege escalation |
+| 13:31 | Audit | **Add member to role**: the new account is made **Global Administrator** | Privilege escalation to full tenant control |
 | 13:33 | Sign-in | New account signs in **from the attacker's IP**. 50055 (temporary password expired) → 50140 → 0 | Use the backdoor |
 | 13:36–13:37 | Audit | **Security info registration** with **SoftwareOath** (an authenticator app code) on the new account | Persistence: the attacker owns its MFA |
+
+The role name comes from the role assignment event itself:
+
+```spl
+index=task-5 sourcetype="azure:aad:audit" activityDisplayName="Add member to role"
+| table _time targetResources{}.displayName targetResources{}.modifiedProperties{}.newValue
+```
+
+`modifiedProperties{}.newValue` lists the role's display name (**Global Administrator**), its template ID (`62e90394-69f5-4237-9190-012177145e10`, the same in every tenant) and its well-known name (**TenantAdmins**).
 
 Joining the two logs on time and IP shows the backdoor account was created *and* used by the same attacker.
 
