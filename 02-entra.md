@@ -208,20 +208,61 @@ AADRiskyUsers
 - **Entitlement management**: access packages that bundle groups, apps and SharePoint sites.
 - **Lifecycle workflows**: joiner, mover and leaver automation.
 
-**Lab** — Looked for risky or suspicious app consents and role changes in audit logs.
+**Lab** — TryHackMe *Entra ID Monitoring* (Task 5): followed the attacker from Task 4 after they got into the first account, using sign-in and audit logs together.
 
-**Query**
+**Step 1: sign-ins by account and IP** (SPL)
 
-```kql
-AuditLogs
-| where TimeGenerated > ago(7d)
-| where OperationName in ("Add member to role", "Consent to application")
-| project TimeGenerated, OperationName, InitiatedBy, TargetResources
+```spl
+index=task-5 sourcetype="azure:aad:signin"
+| stats count values(status.errorCode) AS errorCodes min(_time) AS firstSeen max(_time) AS lastSeen by userPrincipalName ipAddress
+| convert ctime(firstSeen) ctime(lastSeen)
+| sort firstSeen
 ```
 
-**Result**
+![Sign-ins grouped by account and IP](images/2.6a-signin-pivot.png)
 
-![Role and consent changes](images/2.6-audit-roles.png)
+**Step 2: audit log timeline** (SPL)
+
+```spl
+index=task-5 sourcetype="azure:aad:audit"
+| sort _time
+| eval initiator=coalesce('initiatedBy.user.userPrincipalName', 'initiatedBy.app.displayName')
+| table _time activityDisplayName initiator targetResources{}.userPrincipalName result
+```
+
+![Audit log: password change, new user, role, MFA registration](images/2.6b-audit-persistence.png)
+
+*User names, IP addresses and tenant domain redacted.*
+
+**KQL equivalents** (Microsoft Sentinel)
+
+```kql
+SigninLogs
+| summarize Count = count(), ErrorCodes = make_set(ResultType), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated)
+    by UserPrincipalName, IPAddress
+| sort by FirstSeen asc
+
+AuditLogs
+| sort by TimeGenerated asc
+| extend Initiator = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))
+| extend Target = tostring(TargetResources[0].userPrincipalName)
+| project TimeGenerated, OperationName, Initiator, Target, Result
+```
+
+**Why it works: the attack chain** (all on Mar 4)
+
+| Time | Log | What happened | Attacker goal |
+| --- | --- | --- | --- |
+| 13:26 | Sign-in | Victim account signs in after MFA fatigue (Lab 2.2) | Initial access |
+| 13:28 | Audit | **Change password (self-service)** on the victim account | Lock out the real user |
+| 13:31 | Audit | **Add user**: a brand-new account is created | Backdoor account |
+| 13:31 | Audit | **Add member to role**: the new account gets a role | Privilege escalation |
+| 13:33 | Sign-in | New account signs in **from the attacker's IP**. 50055 (temporary password expired) → 50140 → 0 | Use the backdoor |
+| 13:36–13:37 | Audit | **Security info registration** with **SoftwareOath** (an authenticator app code) on the new account | Persistence: the attacker owns its MFA |
+
+Joining the two logs on time and IP shows the backdoor account was created *and* used by the same attacker.
+
+**What stops it** — Fixing MFA fatigue stops the whole chain. After that: **PIM** (roles are time-limited and need approval, so no permanent role grants), alerts on "Add member to role" for privileged roles, a Conditional Access policy that controls *where* security info can be registered, and **access reviews** to catch unexpected new accounts.
 
 **Exam trap** — PIM, access reviews and entitlement management need **P2** (or Entra ID Governance).
 
