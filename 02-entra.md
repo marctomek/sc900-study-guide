@@ -29,21 +29,42 @@ Main lab: TryHackMe *Entra ID Monitoring*. Optional: an E5 trial tenant for port
 - **Password protection**: blocks weak and banned passwords, including on-premises.
 - **Security defaults**: free baseline MFA for everyone. Turn them off when you use Conditional Access.
 
-**Lab** — Checked whether sign-ins in the room's tenant were single-factor or multi-factor.
+**Lab** — TryHackMe *Entra ID Monitoring* (Task 4): followed one user's sign-ins in time order to spot an **MFA fatigue** attack.
 
-**Query**
+**Query** (SPL, as run in the lab)
+
+```spl
+index=task-4 sourcetype="azure:aad:signin"
+| sort _time
+| table _time userPrincipalName ipAddress status.errorCode status.failureReason status.additionalDetails
+```
+
+**KQL equivalent** (Microsoft Sentinel)
 
 ```kql
 SigninLogs
-| where TimeGenerated > ago(7d)
-| summarize SignIns = count() by AuthenticationRequirement
+| sort by TimeGenerated asc
+| project TimeGenerated, UserPrincipalName, IPAddress, ResultType, ResultDescription,
+          AdditionalDetails = tostring(Status.additionalDetails)
 ```
 
 **Result**
 
-![MFA vs single-factor sign-ins](images/2.2-mfa-signins.png)
+![MFA fatigue: repeated unanswered MFA prompts](images/2.2-mfa-signins.png)
 
-**Why it works** — `AuthenticationRequirement` shows `singleFactorAuthentication` or `multiFactorAuthentication`. `summarize count() by` works like `stats count by` in SPL.
+*User and IP addresses redacted. The screenshot shows the first 10 of 17 events.*
+
+**Why it works** — Sorting by time shows the story:
+
+| When | Source | Result |
+| --- | --- | --- |
+| Mar 2–4, 6 sign-ins | The user's usual IP | 0, success |
+| Mar 4, 12:30 → 13:24 | A new IP | **500121** ×10, one MFA prompt about every 6 minutes, never completed |
+| Mar 4, 13:26 | Same new IP | **0**, the user finally approves and the attacker is in |
+
+There are no 50126 errors, so the attacker already had the correct password. MFA was the only thing in the way until the user gave in. That's MFA fatigue (also called MFA bombing or push spam).
+
+**What stops it** — Number matching and location context in Microsoft Authenticator (the user must type a number shown on the sign-in screen), phishing-resistant MFA (FIDO2 keys, passkeys, Windows Hello), the "Report suspicious activity" option, and ID Protection risk policies.
 
 **Exam trap** — SMS and voice calls are the **weakest** MFA methods. Microsoft recommends Authenticator, FIDO2 or Windows Hello.
 
