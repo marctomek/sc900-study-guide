@@ -41,9 +41,39 @@ Labs: TryHackMe KQL module (Sentinel) and *XDR: Introduction* (Defender XDR). Az
 
 **Concept** — A cloud-native **SIEM** (collects and analyses logs) and **SOAR** (automates response). Data lives in a Log Analytics workspace and is queried with KQL. Its parts are data connectors, analytics rules, incidents, workbooks, hunting and playbooks (built on Logic Apps). Sentinel is now built into the Defender portal.
 
-**Lab** — TryHackMe *KQL (Kusto): Introduction* and *Basic Queries*.
+**Lab environment** — The TryHackMe *KQL (Kusto): Introduction* room uses Microsoft's demo Log Analytics workspace, which no longer holds security data. So these labs use the free **Azure Data Explorer help cluster** ([dataexplorer.azure.com/clusters/help](https://dataexplorer.azure.com/clusters/help)), database **SecurityLogs**. It runs the same KQL engine that Sentinel and Log Analytics use.
 
-**Query**
+**Lab A: how the data is organised**
+
+Data in Sentinel and Log Analytics lives in **tables** inside a **workspace** (in Data Explorer, a **database**). Each table holds one kind of event, and every KQL query starts by naming a table.
+
+```kql
+.show tables          // list the tables in the database
+
+AuthenticationEvents
+| take 10             // a sample of rows, to see the columns
+```
+
+![Data Explorer: SecurityLogs database and AuthenticationEvents sample](images/3.3a-kql-tables.png)
+
+**Why it works** — `take 10` is the KQL version of `head 10` in SPL. It shows a table's columns before you write a real query. Here `AuthenticationEvents` has `timestamp`, `hostname`, `src_ip`, `user_agent`, `username` and `result` (Successful Login / Failed Login).
+
+**Lab B: failed logins by source IP**
+
+```kql
+AuthenticationEvents
+| where result == "Failed Login"
+| summarize FailedLogins = count(), Accounts = dcount(username) by src_ip
+| top 10 by FailedLogins
+```
+
+**SPL equivalent** — `index=... result="Failed Login" | stats count AS FailedLogins dc(username) AS Accounts by src_ip | sort - FailedLogins | head 10`
+
+![KQL: top source IPs by failed logins](images/3.3b-kql-failed-logins.png)
+
+**Why it works** — `where` filters rows, `summarize ... by` groups them (like `stats ... by`), `dcount()` counts distinct accounts (like `dc()`), and `top 10 by` sorts and limits in one step. Many accounts failing from one IP is the same password spray pattern as Lab 2.5, found here in KQL instead of SPL.
+
+**In real Sentinel**, the Windows version of this query uses the `SecurityEvent` table and Event ID **4625** (failed logon):
 
 ```kql
 SecurityEvent
@@ -52,12 +82,6 @@ SecurityEvent
 | summarize FailedLogons = count() by Account, Computer
 | top 10 by FailedLogons
 ```
-
-**Result**
-
-![Sentinel KQL failed logons](images/3.3-sentinel-failed-logons.png)
-
-**Why it works** — Event ID 4625 is a failed Windows logon. `top 10 by` sorts and limits in one step, like `stats ... | sort - | head 10` in SPL.
 
 **Exam trap** — SIEM = **collect and detect**. SOAR = **automate the response** (playbooks). Sentinel does both.
 
