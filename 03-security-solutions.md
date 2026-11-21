@@ -71,7 +71,17 @@ AuthenticationEvents
 
 ![KQL: top source IPs by failed logins](images/3.3b-kql-failed-logins.png)
 
-**Why it works** — `where` filters rows, `summarize ... by` groups them (like `stats ... by`), `dcount()` counts distinct accounts (like `dc()`), and `top 10 by` sorts and limits in one step. Many accounts failing from one IP is the same password spray pattern as Lab 2.5, found here in KQL instead of SPL.
+**Why it works** — `where` filters rows, `summarize ... by` groups them (like `stats ... by`), `dcount()` counts distinct accounts (like `dc()`), and `top 10 by` sorts and limits in one step.
+
+**What it shows**
+
+| Source | Failed logins | Accounts | Reading |
+| --- | --- | --- | --- |
+| `88.150.11.111` (external) | 10 | **10** | One try per account across 10 accounts: a **password spray** |
+| `149.124.195.189` (external) | 6 | **6** | Same pattern, smaller scale |
+| `192.168.x.x` (internal) | 4–6 each | 1 | Repeated failures on a single account from inside the network: most likely users mistyping passwords |
+
+The **Accounts** column does the work: when `FailedLogins` equals `Accounts`, the IP is spreading attempts across users to avoid lockouts. It's the same pattern as the Splunk password spray in Lab 2.5, found here with KQL.
 
 **In real Sentinel**, the Windows version of this query uses the `SecurityEvent` table and Event ID **4625** (failed logon):
 
